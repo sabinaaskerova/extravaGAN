@@ -25,7 +25,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
 
-    os.makedirs('checkpoints', exist_ok=True)
+    os.makedirs('chekpoints', exist_ok=True)
     os.makedirs('data', exist_ok=True)
 
     # Data Pipeline
@@ -66,7 +66,6 @@ if __name__ == '__main__':
     D_optimizer = optim.Adam(D.parameters(), lr = args.lr)
 
     print('Start Training :')
-    
     n_epoch = args.epochs
     for epoch in trange(1, n_epoch+1, leave=True):           
         for batch_idx, (x, _) in enumerate(train_loader):
