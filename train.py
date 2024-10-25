@@ -8,12 +8,13 @@ import torch.optim as optim
 
 
 from model import Generator, Discriminator
-from utils import D_train, G_train, save_models
+from utils import D_train, G_train, save_models, D_loss, G_loss
 
 
 
 
 if __name__ == '__main__':
+    
     parser = argparse.ArgumentParser(description='Train Normalizing Flow.')
     parser.add_argument("--epochs", type=int, default=100,
                         help="Number of epochs for training.")
@@ -25,7 +26,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
 
-    os.makedirs('checkpoints', exist_ok=True)
+    os.makedirs('chekpoints', exist_ok=True)
     os.makedirs('data', exist_ok=True)
 
     # Data Pipeline
@@ -44,14 +45,23 @@ if __name__ == '__main__':
     test_loader = torch.utils.data.DataLoader(dataset=test_dataset, 
                                               batch_size=args.batch_size, shuffle=False)
     print('Dataset Loaded.')
-
-
     print('Model Loading...')
     mnist_dim = 784
-    G = torch.nn.DataParallel(Generator(g_output_dim = mnist_dim)).cuda()
-    D = torch.nn.DataParallel(Discriminator(mnist_dim)).cuda()
+    # G = torch.nn.DataParallel(Generator(g_output_dim = mnist_dim)).cuda()
+    # D = torch.nn.DataParallel(Discriminator(mnist_dim)).cuda()
+    G = torch.nn.DataParallel(Generator(g_output_dim = mnist_dim))
+    D = torch.nn.DataParallel(Discriminator(mnist_dim))
+    G.train()
+    D.train()
+    # def weights_init(m):
+    #     if isinstance(m, nn.Linear):
+    #         torch.nn.init.xavier_uniform_(m.weight)
+    #         if m.bias is not None:
+    #             torch.nn.init.constant_(m.bias, 0)
 
-
+    # # Apply to generator
+    # G.apply(weights_init)
+    
     # model = DataParallel(model).cuda()
     print('Model loaded.')
     # Optimizer 
@@ -59,24 +69,32 @@ if __name__ == '__main__':
 
 
     # define loss
-    criterion = nn.BCELoss() 
+    d_criterion = D_loss
+    g_criterion = G_loss
 
     # define optimizers
-    G_optimizer = optim.Adam(G.parameters(), lr = args.lr)
-    D_optimizer = optim.Adam(D.parameters(), lr = args.lr)
+    G_optimizer = optim.Adam(G.parameters(), lr = args.lr, betas=[0.5, 0.9])
+    D_optimizer = optim.Adam(D.parameters(), lr = args.lr, betas=[0.5, 0.9])
 
     print('Start Training :')
     
     n_epoch = args.epochs
+    n_critic = 5
+    gp_weight = 10
+    
     for epoch in trange(1, n_epoch+1, leave=True):           
         for batch_idx, (x, _) in enumerate(train_loader):
             x = x.view(-1, mnist_dim)
-            D_train(x, G, D, D_optimizer, criterion)
-            G_train(x, G, D, G_optimizer, criterion)
-
-        if epoch % 10 == 0:
+            for _ in range(n_critic):
+                D_train(x, G, D, D_optimizer, d_criterion, gp_weight=10)
+            G_train(x, G, D, G_optimizer, g_criterion)
+            
+        if epoch % 1 == 0:
             save_models(G, D, 'checkpoints')
                 
     print('Training done')
+
+
+
 
         
