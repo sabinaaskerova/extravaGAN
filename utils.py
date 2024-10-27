@@ -1,26 +1,40 @@
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
 import os
-import numpy as np
+from torch.distributions import MultivariateNormal, Categorical
 
-def sample_gmm(batch_size, n_components=8, latent_dim=100):
-    """Sample from a Gaussian Mixture Model instead of standard normal distribution"""
-    # Select which Gaussian to sample from
-    component_indices = torch.randint(0, n_components, (batch_size,))
+def sample_gmm(batch_size, n_components=10, latent_dim=100, c=1.0, sigma=0.1):
+    """
+    Args:
+    # n_components = K, number of Gaussians in the mixture (10 for MNIST cuz 10 digit types)
+    # latent_dim = d, dimension of the latent space (should match Generator's input)
+    # c = c, range of the uniform distribution, hyperparameter, [-c, c] (default: 1.0)
+    # sigma = sigma, standard deviation of the covariance matrices, hyperparameter (default: 0.1)
+    # batch_size = N, number of samples to generate
+
+    Returns:
+        torch.Tensor: Samples from GMM of shape (batch_size, latent_dim)
+    """
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
-    # Define means for each component (arranged in a circle)
-    thetas = torch.arange(n_components) * (2 * np.pi / n_components)
-    radius = 2
-    means = torch.stack([radius * torch.cos(thetas), radius * torch.sin(thetas)], dim=1)
+    means = torch.randn(n_components, latent_dim).to(device) * c # fixed means for components 
     
-    # Extend means to full latent dimension
-    means = torch.cat([means, torch.zeros(n_components, latent_dim-2)], dim=1).cuda()
+    cov = torch.eye(latent_dim).to(device) * (sigma ** 2) # covariance matrix (sigma * I) for all components
     
-    # Sample from selected Gaussians
-    samples = torch.randn(batch_size, latent_dim).cuda()
-    for i in range(batch_size):
-        samples[i] = samples[i] + means[component_indices[i]]
+    # Randomly select components for each sample in the batch
+    selected_components = torch.randint(0, n_components, (batch_size,)).to(device)
+    
+    # Generate samples
+    samples = torch.zeros(batch_size, latent_dim).to(device)
+    
+    # Sample from selected components
+    for k in range(n_components):
+        mask = (selected_components == k)
+        if mask.sum() > 0:
+            dist = MultivariateNormal(means[k], cov)
+            samples[mask] = dist.sample((mask.sum(),))
+    
+    # Normalize samples to have similar scale as standard normal
+    samples = samples / (latent_dim ** 0.5)
     
     return samples
 
@@ -29,7 +43,8 @@ def D_train(x, G, D, D_optimizer, criterion):
     D.zero_grad()
     
     # train discriminator on real
-    x_real, y_real = x, torch.ones(x.shape[0], 1)
+    # x_real, y_real = x, torch.ones(x.shape[0], 1)
+    x_real, y_real = x, torch.rand(x.shape[0], 1) * 0.2 + 0.8 # Yannis' modification
     x_real, y_real = x_real.cuda(), y_real.cuda()
     
     D_output = D(x_real)
@@ -38,10 +53,13 @@ def D_train(x, G, D, D_optimizer, criterion):
     
     # train discriminator on fake
     # Use GMM instead of standard normal distribution
-    z = sample_gmm(x.shape[0])
-    x_fake, y_fake = G(z), torch.zeros(x.shape[0], 1).cuda()
-    
+    z = sample_gmm(batch_size=x.shape[0])
+    # x_fake, y_fake = G(z), torch.zeros(x.shape[0], 1).cuda()
+    x_fake, y_fake = G(z), torch.rand(x.shape[0], 1).cuda() * 0.2 # Yannis' modification
+    # print("x_fake", x_fake.shape)
+    # print("y_fake", y_fake.shape)
     D_output = D(x_fake)
+    # print("D_output", D_output.shape)
     D_fake_loss = criterion(D_output, y_fake)
     D_fake_score = D_output
     
@@ -57,7 +75,7 @@ def G_train(x, G, D, G_optimizer, criterion):
     G.zero_grad()
     
     # Use GMM instead of standard normal distribution
-    z = sample_gmm(x.shape[0])
+    z = sample_gmm(batch_size=x.shape[0])
     y = torch.ones(x.shape[0], 1).cuda()
     
     G_output = G(z)
