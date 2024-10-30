@@ -18,7 +18,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Train Normalizing Flow.')
     parser.add_argument("--epochs", type=int, default=100,
                         help="Number of epochs for training.")
-    parser.add_argument("--lr", type=float, default=0.0002,
+    parser.add_argument("--lr", type=float, default=0.0004,
                       help="The learning rate to use for training.")
     parser.add_argument("--batch_size", type=int, default=64, 
                         help="Size of mini-batches for SGD")
@@ -69,8 +69,9 @@ if __name__ == '__main__':
 
 
     # define loss
-    d_criterion = D_loss
-    g_criterion = G_loss
+    # d_criterion = D_loss
+    # g_criterion = G_loss
+    criterion = nn.MSELoss()
 
     # define optimizers
     G_optimizer = optim.Adam(G.parameters(), lr = args.lr, betas=[0.5, 0.9])
@@ -85,11 +86,11 @@ if __name__ == '__main__':
     for epoch in trange(1, n_epoch+1, leave=True):           
         for batch_idx, (x, _) in enumerate(train_loader):
             x = x.view(-1, mnist_dim)
-            for _ in range(n_critic):
-                D_train(x, G, D, D_optimizer, d_criterion, gp_weight=10)
-            G_train(x, G, D, G_optimizer, g_criterion)
+            #for _ in range(n_critic):
+            D_train(x, G, D, D_optimizer, criterion)
+            G_train(x, G, D, G_optimizer, criterion)
             
-        if epoch % 1 == 0:
+        if epoch % 10 == 0:
             save_models(G, D, 'checkpoints')
                 
     print('Training done')
