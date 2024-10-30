@@ -2,57 +2,60 @@ import torch
 import torchvision
 import os
 import argparse
+import random
+
 
 
 from model import Generator, Discriminator
 from utils import load_model
 import torch.nn.functional as F
 
-def generate_samples_with_drs(generator, discriminator, batch_size, threshold=0.5):
-    accepted_samples = []
-    M = 0  # Initialisation de la probabilité maximale
+def BurnIn(G, D_star, num_samples=1000):
+    max_ratio = 0
+    for _ in range(num_samples):
+        z = torch.randn(1, 100).cuda()
+        x = G(z)
+        ratio = torch.exp(D_star(x)).item()
+        max_ratio = max(max_ratio, ratio)
+    return max_ratio
 
-    while len(accepted_samples) < batch_size:
-        # Générer un batch complet
-        z = torch.randn(batch_size, 100).cuda()
-        samples = generator(z)
+def DiscriminatorRejectionSampling(G, D, N, epsilon, gamma):
+    D_star = D
+    D_star_M = BurnIn(G, D_star)
+    M_bar = D_star_M
+    
+    samples = []
+    
+    while len(samples) < N:
+        z = torch.randn(1, 100).cuda()
+        x = G(z)
+        
+        # Compute acceptation
+        ratio = torch.exp(D_star(x)).item()
+        M_bar = max(M_bar, ratio)
+        
+        # Compute probability of acceptation
+        F = (D_star(x) - D_star_M
+                   - torch.log(1 - torch.exp(D_star(x) - D_star_M - epsilon))
+                   - gamma)
+        p = torch.sigmoid(F).item()
+        
+        # We decide if we accept it or not
+        psi = random.uniform(0, 1)
+        if psi <= p:
+            samples.append(x.squeeze())
+    
+    return samples
 
-        # Calculer les scores et probabilités
-        scores = discriminator(samples)
-        probabilities = F.sigmoid(scores)
+def generate_samples_with_drs(z):
+    D = Discriminator(d_input_dim=784).cuda()
+    D = load_model(D, 'checkpoints', 'D.pth')
+    D = torch.nn.DataParallel(D).cuda()
+    D.eval()
 
-        # Mettre à jour M avec la probabilité maximale du batch
-        M = max(M, probabilities.max().item())
-
-        # Appliquer la DRS pour chaque échantillon dans le batch
-        for i in range(batch_size):
-            acceptance_probability = probabilities[i] / M
-            if torch.rand(1).item() < acceptance_probability:
-                accepted_samples.append(samples[i])
-                if len(accepted_samples) >= batch_size:
-                    break  # Arrête si le nombre d'échantillons acceptés atteint le batch_size cible
-
-    # Convertir en tenseur et retourner le batch accepté
-    return torch.stack(accepted_samples[:batch_size])
-'''
-def generate_single_sample_with_drs(generator, discriminator, threshold=0.5):
-    M = 0  # Initialisation of the maximal probability
-
-    while True:
-        z = torch.randn(args.batch_size, 100).cuda()
-        sample = generator(z)
-
-        # COmpute the probability
-        score = discriminator(sample)
-        probability = F.sigmoid(score)
-
-        # New maximal probability
-        M = max(M, probability.item())
-
-        acceptance_probability = probability / M  # Probability of rejection
-        if torch.rand(1).item() < acceptance_probability:
-            return sample  # Return if it is accepted
-'''
+    # get sample with the dicriminator
+    samples = DiscriminatorRejectionSampling(G, D, len(z), epsilon=1e-10, gamma=0.001)
+    return torch.stack(samples)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Generate Normalizing Flow.')
@@ -71,12 +74,6 @@ if __name__ == '__main__':
     G = load_model(G, 'checkpoints', 'G.pth')
     G = torch.nn.DataParallel(G).cuda()
     G.eval()
-
-    D = Discriminator(d_input_dim = mnist_dim)
-    D = load_model(D, 'checkpoints', 'D.pth')
-    D = torch.nn.DataParallel(D).cuda()
-    D.eval()
-
     print('Model loaded.')
 
 
@@ -87,8 +84,8 @@ if __name__ == '__main__':
     n_samples = 0
     with torch.no_grad():
         while n_samples<10000:
-            
-            x = generate_samples_with_drs(G, D, batch_size=args.batch_size, threshold = 0.5)
+            z = torch.randn(args.batch_size, 100).cuda()
+            x = generate_samples_with_drs(z) 
             x = x.reshape(args.batch_size, 28, 28)
             for k in range(x.shape[0]):
                 if n_samples<10000:
