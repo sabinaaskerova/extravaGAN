@@ -1,75 +1,93 @@
 import torch
-from torch import nn
+import torch.nn as nn
+import torch.optim as optim
+import torch.nn.functional as F
+from torchvision import transforms
 import os
-import numpy as np
-# possible augmentations: image flipping and rotating, sentence back-translating, etc.
-def add_noise(inputs, noise_factor=0.1):
-    noise = noise_factor * torch.randn_like(inputs)
-    return inputs + noise
 
-def D_train(x, G, D, D_optimizer, criterion, noise_factor=0.1):
+# Define auxiliary function to add noise
+def add_noise(z, sigma_noise=0.03):
+    noise = torch.normal(0, sigma_noise, z.shape).cuda()
+    return z + noise
+
+# D_train function with bCR and zCR regularization
+def D_train(x, G, D, D_optimizer, criterion, noise_factor=0.03, lambda_real=10, lambda_fake=10, lambda_dis=5):
     D.zero_grad()
-    # Train discriminator on real
-    x_real, y_real = x.cuda(), torch.rand(x.shape[0], 1).cuda()
-
-    D_output = D(x_real)
-    D_real_loss = criterion(D_output, y_real)
-    D_real_score = D_output
-
-    # Train discriminator on fake
-    z = torch.randn(x.shape[0], 100).cuda()
-    x_fake = G(z).detach()
-    y_fake = torch.rand(x.shape[0], 1).cuda() * 0.2 # label smoothing
-    D_output = D(x_fake)
-
-    D_fake_loss = criterion(D_output, y_fake) 
-
-    # Apply noise for consistency regularization
-    x_fake_noisy = add_noise(x_fake, noise_factor) # augmented input to D
-    D_output_noisy = D(x_fake_noisy)
-    consistency_loss = criterion(D_output_noisy, y_fake)
-
-    # Total loss
-    D_loss = D_real_loss + D_fake_loss + consistency_loss # consistency regularization
-    D_loss.backward()
-    D_optimizer.step()
-
-    return D_loss.data.item()
-
-
-def G_train(x, G, D, G_optimizer, criterion, noise_factor=0.1):
-    G.zero_grad()
-    z = torch.randn(x.shape[0], 100).cuda()
-    y = torch.ones(x.shape[0], 1).cuda()
-
-    G_output = G(z).cuda()
-    D_output = D(G_output).cuda()
-
-    # Adversarial loss
-    G_adv_loss = criterion(D_output, y) 
-
-    # Consistency regularization
-    G_output_noisy = add_noise(G_output, noise_factor)
-    D_output_noisy = D(G_output_noisy).cuda()
     
-    G_consistency_loss = criterion(D_output_noisy, y)
+    # Real images
+    real_label = torch.ones(x.size(0), 1).cuda()
+    D_x = D(x)
+    errD_real = criterion(D_x, real_label)
+    
+    # bCR for real images: augment x and calculate consistency loss
+    T_x = transforms.RandomHorizontalFlip()(x)
+    D_T_x = D(T_x)
+    L_real = F.mse_loss(D_x, D_T_x)
+    
+    # Total loss for real images
+    real_loss = errD_real + lambda_real * L_real
+    real_loss.backward()
+    
+    # Fake images
+    z = torch.randn(x.size(0), 100).cuda()
+    z = add_noise(z, sigma_noise=noise_factor)  # zCR transformation
+    G_z = G(z)
+    fake_label = torch.zeros(x.size(0), 1).cuda()
+    D_G_z = D(G_z.detach())
+    errD_fake = criterion(D_G_z, fake_label)
+    
+    # bCR for fake images: augment generated images and calculate consistency loss
+    T_G_z = transforms.RandomHorizontalFlip()(G_z.detach())
+    D_T_G_z = D(T_G_z)
+    L_fake = F.mse_loss(D_G_z, D_T_G_z)
+    
+    # zCR for discriminator: forward transformed z through generator and calculate consistency loss
+    T_z = add_noise(z, sigma_noise=noise_factor)
+    G_T_z = G(T_z)
+    D_G_T_z = D(G_T_z.detach())
+    L_dis = F.mse_loss(D_G_z, D_G_T_z)
+    
+    # Total loss for fake images
+    fake_loss = errD_fake + lambda_fake * L_fake + lambda_dis * L_dis
+    fake_loss.backward()
+    
+    D_optimizer.step()
+    
+    return (real_loss + fake_loss).item()
 
-    G_loss = G_adv_loss + 0.1 * G_consistency_loss  # Adjust the weight as needed
+# G_train function with zCR regularization for generator
+def G_train(x, G, D, G_optimizer, criterion, noise_factor=0.03, lambda_gen=0.5):
+    G.zero_grad()
+    
+    # Generate fake images
+    z = torch.randn(x.size(0), 100).cuda()
+    G_z = G(z)
+    
+    # Label for generator training (trying to fool the discriminator)
+    real_label = torch.ones(x.size(0), 1).cuda()
+    D_G_z = D(G_z)
+    errG = criterion(D_G_z, real_label)
+    
+    # zCR for generator: transformed z consistency loss
+    T_z = add_noise(z, sigma_noise=noise_factor)
+    G_T_z = G(T_z)
+    L_gen = -F.mse_loss(G_z, G_T_z)  # zCR regularization for generator
 
-    # Gradient backprop & optimize ONLY G's parameters
-    G_loss.backward()
+    # Total generator loss
+    generator_loss = errG + lambda_gen * L_gen
+    generator_loss.backward()
+    
     G_optimizer.step()
 
-    return G_loss.data.item()
-
+    return generator_loss.item()
 
 def save_models(G, D, folder):
     os.makedirs(folder, exist_ok=True)
-    torch.save(G.state_dict(), os.path.join(folder,'G.pth'))
-    torch.save(D.state_dict(), os.path.join(folder,'D.pth'))
+    torch.save(G.state_dict(), os.path.join(folder, 'G.pth'))
+    torch.save(D.state_dict(), os.path.join(folder, 'D.pth'))
 
 
 def load_model(G, folder):
-    ckpt = torch.load(os.path.join(folder,'G.pth'))
-    G.load_state_dict({k.replace('module.', ''): v for k, v in  ckpt.items()})
+    ckpt = torch.load(os.path.join(folder, 'G.pth'))
+    G.load_state_dict({k.replace('module.', ''): v for k, v in ckpt.items()})
     return G

@@ -61,8 +61,10 @@ if __name__ == '__main__':
     for epoch in trange(1, n_epoch+1, leave=True):           
         for batch_idx, (x, _) in enumerate(train_loader):
             x = x.view(-1, mnist_dim)
-            D_loss = D_train(x, G, D, D_optimizer, criterion, noise_factor=args.noise_factor)
-            G_loss = G_train(x, G, D, G_optimizer, criterion, noise_factor=args.noise_factor)
+            # D_loss = D_train(x, G, D, D_optimizer, criterion, noise_factor=args.noise_factor)
+            # G_loss = G_train(x, G, D, G_optimizer, criterion, noise_factor=args.noise_factor)
+            D_loss = D_train(x, G, D, D_optimizer, criterion)
+            G_loss = G_train(x, G, D, G_optimizer, criterion)
 
         if epoch % 10 == 0:
             save_models(G, D, 'checkpoints')
