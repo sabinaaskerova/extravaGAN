@@ -4,10 +4,9 @@ import torch.optim as optim
 import torch.nn.functional as F
 from torchvision import transforms
 import os
-
 # Define auxiliary function to add noise
 def add_noise(z, sigma_noise=0.03):
-    noise = torch.normal(0, sigma_noise, z.shape).cuda()
+    noise = torch.normal(0, sigma_noise, z.shape).to(z.device)
     return z + noise
 
 # D_train function with bCR and zCR regularization
@@ -15,6 +14,7 @@ def D_train(x, G, D, D_optimizer, criterion, noise_factor=0.03, lambda_real=10, 
     D.zero_grad()
     
     # Real images
+    # real_label = torch.ones(x.size(0), device=x.device)
     real_label = torch.ones(x.size(0), 1).cuda()
     D_x = D(x)
     errD_real = criterion(D_x, real_label)
@@ -29,9 +29,11 @@ def D_train(x, G, D, D_optimizer, criterion, noise_factor=0.03, lambda_real=10, 
     real_loss.backward()
     
     # Fake images
+    # z = torch.randn(x.size(0), G.nz, device=x.device)
     z = torch.randn(x.size(0), 100).cuda()
     z = add_noise(z, sigma_noise=noise_factor)  # zCR transformation
     G_z = G(z)
+    # fake_label = torch.zeros(x.size(0), device=x.device)
     fake_label = torch.zeros(x.size(0), 1).cuda()
     D_G_z = D(G_z.detach())
     errD_fake = criterion(D_G_z, fake_label)
@@ -53,6 +55,7 @@ def D_train(x, G, D, D_optimizer, criterion, noise_factor=0.03, lambda_real=10, 
     
     D_optimizer.step()
     
+    # Return total discriminator loss
     return (real_loss + fake_loss).item()
 
 # G_train function with zCR regularization for generator
@@ -60,6 +63,7 @@ def G_train(x, G, D, G_optimizer, criterion, noise_factor=0.03, lambda_gen=0.5):
     G.zero_grad()
     
     # Generate fake images
+    # z = torch.randn(x.size(0), G.nz, device=x.device)
     z = torch.randn(x.size(0), 100).cuda()
     G_z = G(z)
     
@@ -78,8 +82,10 @@ def G_train(x, G, D, G_optimizer, criterion, noise_factor=0.03, lambda_gen=0.5):
     generator_loss.backward()
     
     G_optimizer.step()
-
+    
+    # Return total generator loss
     return generator_loss.item()
+
 
 def save_models(G, D, folder):
     os.makedirs(folder, exist_ok=True)
