@@ -92,7 +92,6 @@ if __name__ == '__main__':
     n_samples = 0
     with torch.no_grad():
         while n_samples<10000:
-            print(n_samples)
             x = generate_samples_with_drs(G, D, args.batch_size)
             x = x.reshape(-1, 28, 28)
             for k in range(x.shape[0]):
