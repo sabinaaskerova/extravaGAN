@@ -49,7 +49,8 @@ if __name__ == '__main__':
 
 
     # define loss
-    criterion = nn.BCELoss() 
+    # criterion = nn.BCELoss() 
+    criterion = nn.MSELoss()
 
     # define optimizers
     G_optimizer = optim.Adam(G.parameters(), lr = args.lr)
