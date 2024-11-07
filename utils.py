@@ -1,6 +1,6 @@
 import torch
 import os
-
+import random
 
 
 def D_train(x, G, D, D_optimizer, criterion):
@@ -48,7 +48,6 @@ def G_train(x, G, D, G_optimizer, criterion):
     G_optimizer.step()
         
     return G_loss.data.item()
-
 
 
 def save_models(G, D, folder):
