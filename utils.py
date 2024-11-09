@@ -20,7 +20,13 @@ def D_train(x, G, D, D_optimizer, criterion, noise_factor=0.03, lambda_real=10, 
     errD_real = criterion(D_x, real_label)
     
     # bCR for real images: augment x and calculate consistency loss
-    T_x = transforms.RandomHorizontalFlip()(x)
+    # T_x = transforms.RandomHorizontalFlip()(x)
+    # T_x = transforms.RandomAffine(degrees=10, translate=(0.1, 0.1), scale=(0.9, 1.1))(x)
+    # T_x = transforms.
+    x_ = x.view(-1, 28, 28)
+    pil_x = transforms.ToPILImage()(x_[0].cpu())
+    T_x = transforms.RandomAffine(degrees=10, translate=(0.1, 0.1), scale=(0.9, 1.1))(pil_x)
+    T_x = transforms.ToTensor()(T_x).view(-1, 784).cuda()
     D_T_x = D(T_x)
     L_real = F.mse_loss(D_x, D_T_x)
     
