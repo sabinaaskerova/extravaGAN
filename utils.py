@@ -20,13 +20,7 @@ def D_train(x, G, D, D_optimizer, criterion, noise_factor=0.03, lambda_real=10, 
     errD_real = criterion(D_x, real_label)
     
     # bCR for real images: augment x and calculate consistency loss
-    # T_x = transforms.RandomHorizontalFlip()(x)
-    # T_x = transforms.RandomAffine(degrees=10, translate=(0.1, 0.1), scale=(0.9, 1.1))(x)
-    # T_x = transforms.
-    x_ = x.view(-1, 28, 28)
-    pil_x = transforms.ToPILImage()(x_[0].cpu())
-    T_x = transforms.RandomAffine(degrees=10, translate=(0.1, 0.1), scale=(0.9, 1.1))(pil_x)
-    T_x = transforms.ToTensor()(T_x).view(-1, 784).cuda()
+    T_x = transforms.RandomHorizontalFlip()(x)
     D_T_x = D(T_x)
     L_real = F.mse_loss(D_x, D_T_x)
     
@@ -93,13 +87,13 @@ def G_train(x, G, D, G_optimizer, criterion, noise_factor=0.03, lambda_gen=0.5):
     return generator_loss.item()
 
 
-def save_models(G, D, folder):
+def save_models(G, D, folder, G_name, D_name):
     os.makedirs(folder, exist_ok=True)
-    torch.save(G.state_dict(), os.path.join(folder, 'G.pth'))
-    torch.save(D.state_dict(), os.path.join(folder, 'D.pth'))
+    torch.save(G.state_dict(), os.path.join(folder, G_name))
+    torch.save(D.state_dict(), os.path.join(folder, D_name))
 
 
-def load_model(G, folder):
-    ckpt = torch.load(os.path.join(folder, 'G.pth'))
+def load_model(G, folder, gname):
+    ckpt = torch.load(os.path.join(folder, gname))
     G.load_state_dict({k.replace('module.', ''): v for k, v in ckpt.items()})
     return G

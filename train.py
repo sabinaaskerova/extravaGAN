@@ -19,7 +19,10 @@ if __name__ == '__main__':
                         help="Size of mini-batches for SGD")
     parser.add_argument("--noise_factor", type=float, default=0.1,
                         help="Noise factor for consistency regularization")
-
+    parser.add_argument("--gname", type=str, default="G.pth",
+                        help="File name for saving the generator model checkpoint.")
+    parser.add_argument("--dname", type=str, default="D.pth",
+                        help="File name for saving the discriminator model checkpoint.")
     args = parser.parse_args()
 
     os.makedirs('checkpoints', exist_ok=True)
@@ -62,12 +65,12 @@ if __name__ == '__main__':
     for epoch in trange(1, n_epoch+1, leave=True):           
         for batch_idx, (x, _) in enumerate(train_loader):
             x = x.view(-1, mnist_dim)
-            # D_loss = D_train(x, G, D, D_optimizer, criterion, noise_factor=args.noise_factor)
-            # G_loss = G_train(x, G, D, G_optimizer, criterion, noise_factor=args.noise_factor)
-            D_loss = D_train(x, G, D, D_optimizer, criterion)
-            G_loss = G_train(x, G, D, G_optimizer, criterion)
+            D_loss = D_train(x, G, D, D_optimizer, criterion, noise_factor=args.noise_factor)
+            G_loss = G_train(x, G, D, G_optimizer, criterion, noise_factor=args.noise_factor)
+            # D_loss = D_train(x, G, D, D_optimizer, criterion)
+            # G_loss = G_train(x, G, D, G_optimizer, criterion)
 
         if epoch % 10 == 0:
-            save_models(G, D, 'checkpoints')
+            save_models(G, D, 'checkpoints', gname=args.gname, dname=args.dname)
 
     print('Training done')
