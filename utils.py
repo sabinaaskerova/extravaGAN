@@ -87,10 +87,10 @@ def G_train(x, G, D, G_optimizer, criterion, noise_factor=0.03, lambda_gen=0.5):
     return generator_loss.item()
 
 
-def save_models(G, D, folder, G_name, D_name):
+def save_models(G, D, folder, gname, dname):
     os.makedirs(folder, exist_ok=True)
-    torch.save(G.state_dict(), os.path.join(folder, G_name))
-    torch.save(D.state_dict(), os.path.join(folder, D_name))
+    torch.save(G.state_dict(), os.path.join(folder, gname))
+    torch.save(D.state_dict(), os.path.join(folder, dname))
 
 
 def load_model(G, folder, gname):
