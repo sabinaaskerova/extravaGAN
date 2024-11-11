@@ -6,12 +6,12 @@ from torchvision import transforms
 import os
 
 # Define auxiliary function to add noise
-def add_noise(z, sigma_noise=0.03):
+def add_noise(z, sigma_noise=0.05):
     noise = torch.normal(0, sigma_noise, z.shape).cuda()
     return z + noise
 
 # D_train function with bCR and zCR regularization
-def D_train(x, G, D, D_optimizer, criterion, noise_factor=0.03, lambda_real=10, lambda_fake=10, lambda_dis=5):
+def D_train(x, G, D, D_optimizer, criterion, noise_factor=0.05, lambda_real=10, lambda_fake=10, lambda_dis=5):
     D.zero_grad()
     
     # Real images
@@ -56,7 +56,7 @@ def D_train(x, G, D, D_optimizer, criterion, noise_factor=0.03, lambda_real=10, 
     return (real_loss + fake_loss).item()
 
 # G_train function with zCR regularization for generator
-def G_train(x, G, D, G_optimizer, criterion, noise_factor=0.03, lambda_gen=0.5):
+def G_train(x, G, D, G_optimizer, criterion, noise_factor=0.05, lambda_gen=0.5):
     G.zero_grad()
     
     # Generate fake images
