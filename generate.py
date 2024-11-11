@@ -11,8 +11,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Generate Normalizing Flow.')
     parser.add_argument("--batch_size", type=int, default=2048,
                       help="The batch size to use for training.")
-    parser.add_argument("--gname", type=str, default="G.pth",
-                    help="File name for saving the generator model checkpoint.")
     args = parser.parse_args()
 
 
@@ -23,7 +21,7 @@ if __name__ == '__main__':
     mnist_dim = 784
 
     model = Generator(g_output_dim = mnist_dim).cuda()
-    model = load_model(model, 'checkpoints', gname=args.gname)
+    model = load_model(model, 'checkpoints')
     model = torch.nn.DataParallel(model).cuda()
     model.eval()
 
