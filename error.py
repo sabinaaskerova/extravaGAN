@@ -10,13 +10,13 @@ from improved_precision_recall import IPR, get_custom_loader
 def load_mnist_images(filename):
     with open(filename, 'rb') as f:
         # Read the magic number and dimensions
-        magic, num_images, rows, cols = struct.unpack('>IIII', f.read(16))
+        magic, numimages, rows, cols = struct.unpack('>IIII', f.read(16))
         # Read the image data and reshape it into a 2D array (number of images, 28x28)
-        images = np.fromfile(f, dtype=np.uint8).reshape(num_images, rows, cols)
+        images = np.fromfile(f, dtype=np.uint8).reshape(numimages, rows, cols)
     return images
 
 
-def load_generated_images(folder_path):
+def loadgenerated_images(folder_path):
     generated_images = []
     for filename in os.listdir(folder_path):
         if filename.endswith(".png"):
@@ -24,11 +24,9 @@ def load_generated_images(folder_path):
             generated_images.append(np.array(image))
     return generated_images
 
-
-def main():
+if __name__ == '__main__':
     # Load the test data
-    test_images = load_mnist_images('data\\MNIST\\raw\\t10k-images-idx3-ubyte')
-    generated_images = load_generated_images('samples')
+    test_images = load_mnist_images('data/MNIST/MNIST/raw/t10k-images-idx3-ubyte')
 
     output_folder = 'test_images'
 
@@ -39,20 +37,17 @@ def main():
     # Enregistrer les images
     for i in range(test_images.shape[0]):
         img = Image.fromarray(test_images[i].astype(np.uint8))  # Convertir le tableau NumPy en image
-        img.save(os.path.join(output_folder, f'image_{i}.png'))  # Enregistrer l'image sous forme de PNG
-        
+        img.save(os.path.join(output_folder, f'image{i}.png'))  # Enregistrer l'image sous forme de PNG
+
 
     ipr = IPR()
     # Compute precision and recall between real and fake images
     with torch.no_grad():
         # Compute manifold for real images
-        ipr.compute_manifold_ref('test_images')
+        ipr.compute_manifold_ref('samples')
 
         # Compute precision and recall for fake images
-        precision, recall = ipr.precision_and_recall(generated_images)
+        precision, recall = ipr.precision_and_recall('test_images')
 
         print(f'Precision: {precision}')
         print(f'Recall: {recall}')
-
-if __name__ == '__main__':
-    main()

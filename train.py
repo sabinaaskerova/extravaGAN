@@ -11,8 +11,6 @@ from model import Generator, Discriminator
 from utils import D_train, G_train, save_models
 
 
-
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Train Normalizing Flow.')
     parser.add_argument("--epochs", type=int, default=100,
